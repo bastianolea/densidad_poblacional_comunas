@@ -1,0 +1,27 @@
+{
+    "id": "4595DAE0",
+    "path": "~/Documents/densidad_poblacional/poblacion.R",
+    "project_path": "poblacion.R",
+    "type": "r_source",
+    "hash": "0",
+    "contents": "",
+    "dirty": false,
+    "created": 1776174253078.0,
+    "source_on_save": false,
+    "relative_order": 1,
+    "properties": {
+        "tempName": "Untitled1",
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "97,0",
+        "scrollLine": "50"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1776176294,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1776176294100,
+    "read_only": false,
+    "read_only_alternatives": []
+}
