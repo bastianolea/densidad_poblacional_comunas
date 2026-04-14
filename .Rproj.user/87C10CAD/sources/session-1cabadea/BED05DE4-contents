@@ -1,5 +1,7 @@
 # https://www.behance.net/gallery/99114047/Population-Density
 
+# donde los círculos de las comunas representan el tamaño de la comuna
+
 library(dplyr)
 library(tidyr)
 library(arrow)
@@ -15,10 +17,6 @@ number_options(big.mark = '.', decimal.mark = ",")
 
 source("funciones.R")
 
-# muestra solo la población total como puntos dentro de círculos
-# probar:
-#     calcular densidad (población por km2)
-#     cambiar tamaño de círculo dependiendo de población
 
 # cargar ----
 
@@ -108,7 +106,7 @@ theme_set(
 ggplot() +
   geom_circle(
     data = puntos_pob |> distinct(nombre_comuna, radio),
-    aes(x0 = 0, y0 = 0, r = radio + 0.04),
+    aes(x0 = 0, y0 = 0, r = radio + 0.05),
     linewidth = .5, fill = color$secundario, color = color$detalle
   ) +
   geom_point(
@@ -144,6 +142,7 @@ ggplot() +
         panel.spacing.y = unit(0.5, "cm"),
         plot.margin = margin(6, 10, 6, 10)) +
   labs(title = "Densidad poblacional por comuna",
-       subtitle = "Los círculos representan el territorio comunal, y cada punto simboliza aproximadamente a 1.000 habitantes",
-       caption = "Fuente: Censo 2024")
+       subtitle = "Los círculos representan el territorio comunal y cada punto a 1.000 habitantes",
+       caption = "Fuente: Censo 2024") +
+  canvas(7, 7, bg = color$fondo)
 
