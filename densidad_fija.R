@@ -69,20 +69,23 @@ poblacion_area
 
 # datos de la región
 datos <- poblacion_area |> 
-  filter(region == 13) |> # región elegida
+  filter(region == 9) |> # región elegida
   slice_max(poblacion, n = 12, with_ties = F) |> # cantidad de comunas
   mutate(nombre_comuna = fct_reorder(nombre_comuna, desc(poblacion)))
 
 
 # puntos para gráfico
+radio = .7
+
 puntos_pob <- datos |>
   # rango del tamaño de círculos
-  mutate(radio = rescalar(superficie, 0.8, 1.3)) |> # escala de círculos
-  mutate(pob = poblacion/1000,      # tasa de población para puntos
-         pob = ceiling(pob)) |> 
+  # mutate(radio = rescalar(superficie, 0.7, 1.4)) |> # escala de círculos
+  mutate(densidad = poblacion/superficie) |> 
+  mutate(dens = densidad/1,      # tasa de población para puntos
+         dens = ceiling(dens)) |> 
   # calcular puntos dispersos
   rowwise() |> 
-  mutate(points = puntos(pob, radio)) |>
+  mutate(points = puntos(dens, radio)) |>
   unnest(points)
 
 
@@ -104,33 +107,38 @@ theme_set(
              ink = color$texto)
 )
 
+densidad_max <- max(puntos_pob$densidad)
+
+tamaño <- case_when(densidad_max > 10000 ~ 0.08,
+                    densidad_max > 5000 ~ 1.3,
+                    densidad_max <= 5000 ~ .9)
 
 ggplot() +
   geom_circle(
-    data = puntos_pob |> distinct(nombre_comuna, radio),
-    aes(x0 = 0, y0 = 0, r = radio + 0.04),
+    data = puntos_pob |> distinct(nombre_comuna),
+    aes(x0 = 0, y0 = 0, r = radio + 0.02),
     linewidth = .5, fill = color$secundario, color = color$detalle
   ) +
   geom_point(
     data = puntos_pob,
     aes(x = x, y = y),
-    size = 0.8, alpha = 0.7
+    size = tamaño, alpha = 0.6
   ) +
   # texto superior
   geom_richtext(
-    data = puntos_pob |> distinct(nombre_comuna, radio, poblacion),
-    aes(x = 0, y = radio + 0.16, 
+    data = puntos_pob |> distinct(nombre_comuna, poblacion),
+    aes(x = 0, y = radio + 0.1, 
         label = glue("<b style='font-size: 10pt;'>{nombre_comuna}</b><br>
                      <span style='font-size: 8pt;'>{label_number()(poblacion)} habitantes</span>")
-        ),
+    ),
     label.padding = unit(0, "pt"), label.margin = unit(0, "pt"), label.size = unit(0, "pt"),
     size = 3, vjust = 0, family = "Manrope", fill = NA, color = color$texto
   ) +
   # texto inferior
   geom_text(
-    data = puntos_pob |> distinct(nombre_comuna, radio, poblacion, superficie),
-    aes(x = 0, y = 0 - radio - 0.2, 
-        label = glue("{label_number(suffix = ' km²')(superficie)}, {label_number(accuracy = 1)(poblacion/superficie)} hab/km")),
+    data = puntos_pob |> distinct(nombre_comuna, densidad, poblacion, superficie),
+    aes(x = 0, y = 0 - radio - 0.12, 
+        label = glue("{label_number(suffix = ' km²')(superficie)}, {label_number(accuracy = 1)(densidad)} hab/km")),
     size = 2.8, vjust = 1, family = "Manrope", color = "#64A1C3"
   ) +
   scale_y_continuous(expand = expansion(c(0.03, 0.12))) +
@@ -139,11 +147,13 @@ ggplot() +
   theme(strip.text = element_blank(), #element_text(size = 11, margin = margin(t = 6)),
         strip.clip = "off",
         plot.title = element_text(family = "Manrope Bold"),
-        plot.subtitle = element_text(margin = margin(t = 5, b = 12)),
+        plot.subtitle = element_text(margin = margin(t = 5, b = 24)),
         plot.caption = element_text(margin = margin(t = 12, b = 0)),
-        panel.spacing.y = unit(0.5, "cm"),
+        panel.spacing.y = unit(1.1, "cm"),
+        panel.spacing.x = unit(0.5, "cm"),
         plot.margin = margin(6, 10, 6, 10)) +
   labs(title = "Densidad poblacional por comuna",
-       subtitle = "Los círculos representan el territorio comunal, y cada punto simboliza aproximadamente a 1.000 habitantes",
+       subtitle = "Los círculos representan 1 km², y cada punto simboliza a 1 habitante",
        caption = "Fuente: Censo 2024")
+
 

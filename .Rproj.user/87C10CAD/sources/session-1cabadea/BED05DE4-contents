@@ -1,3 +1,5 @@
+# https://www.behance.net/gallery/99114047/Population-Density
+
 library(dplyr)
 library(tidyr)
 library(arrow)
@@ -68,7 +70,8 @@ poblacion_area
 # datos de la región
 datos <- poblacion_area |> 
   filter(region == 13) |> # región elegida
-  slice_max(poblacion, n = 12, with_ties = F) # cantidad de comunas
+  slice_max(poblacion, n = 12, with_ties = F) |> # cantidad de comunas
+  mutate(nombre_comuna = fct_reorder(nombre_comuna, desc(poblacion)))
 
 
 # puntos para gráfico
@@ -137,6 +140,7 @@ ggplot() +
         strip.clip = "off",
         plot.title = element_text(family = "Manrope Bold"),
         plot.subtitle = element_text(margin = margin(t = 5, b = 12)),
+        plot.caption = element_text(margin = margin(t = 12, b = 0)),
         panel.spacing.y = unit(0.5, "cm"),
         plot.margin = margin(6, 10, 6, 10)) +
   labs(title = "Densidad poblacional por comuna",
