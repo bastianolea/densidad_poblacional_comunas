@@ -10,6 +10,7 @@ library(ggtext)
 library(glue)
 library(forcats)
 library(shinycssloaders)
+library(DT)
 
 source("funciones.R")
 
@@ -18,7 +19,12 @@ number_options(big.mark = ".", decimal.mark = ",")
 # ── Cargar datos ──────────────────────────────────────────────────────────────
 
 poblacion_area <- read_parquet("datos/poblacion_area_urbana.parquet")
-regiones_df    <- poblacion_area |> distinct(region, nombre_region)
+
+orden_geografico <- c(15, 1, 2, 3, 4, 5, 13, 6, 7, 16, 8, 9, 14, 10, 11, 12)
+
+regiones_df <- poblacion_area |>
+  distinct(region, nombre_region) |>
+  arrange(match(region, orden_geografico))
 
 
 # ── Paleta de colores ─────────────────────────────────────────────────────────
@@ -27,13 +33,14 @@ color <- list(
   texto      = "#075180",
   fondo      = "#E5F3FA",
   secundario = "#FBF7ED",
-  detalle    = "#88B8D3"
+  detalle    = "#77ADCC"
 )
 
 
 # ── UI ────────────────────────────────────────────────────────────────────────
 
 ui <- page_sidebar(
+  fillable = FALSE,
   title = "Densidad poblacional urbana",
   theme = bs_theme(
     version   = 5,
@@ -47,96 +54,147 @@ ui <- page_sidebar(
   tags$head(
     tags$style(
       ".info {
+        font-size: 80%;
+        font-style: italic;
+        line-height: 1.3;
+        margin-top: -8px;
+        margin-bottom: 20px;
+      }
+      table.dataTable {
       font-size: 80%;
-      font-style: italic;
-      line-height: 1.3;
-      margin-top: -8px;
-      margin-bottom: 20px;
+      }
+      table.dataTable thead th, table.dataTable thead td {
+        border-bottom: solid 1px #075180 !important;
+      }
+      table.dataTable.stripe tbody tr.odd  { background-color: #E5F3FA; }
+      table.dataTable.stripe tbody tr.even { background-color: #FBF7ED; }
+      table.dataTable tbody tr:hover > * { background-color: #C5DCF0 !important; }
+      .dataTables_wrapper .dataTables_info,
+      .dataTables_wrapper .dataTables_paginate { color: #075180; font-size: 85%; }
+      .dataTables_wrapper .dataTables_paginate .paginate_button:hover {
+        background: #075180 !important; color: white !important; border-color: #075180 !important;
+      }
+      .dataTables_wrapper .dataTables_paginate .paginate_button.current,
+      .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
+        background: #075180 !important; color: white !important; border-color: #075180 !important;
       }"
     )
   ),
-
+  
+  
+  markdown(
+    "Visualiza la **densidad poblacional** (cantidad de personas que habitan por kilómetro cuadrado) de las comunas de Chile. Selecciona una región para ver las comunas más pobladas y sus densidades, o puedes elegir las comunas que necesites ver. También puedes elegir _Todas_ en el selector de regiones para visualizar juntas comunas de cualquier región del país."
+  ),
+  
+  markdown(
+    "Los datos provienen del [Censo 2024](https://censo2024.ine.gob.cl), cartografía censal nivel manzanas."
+  ),
+  
+  
   sidebar = sidebar(
     width = 310,
     accordion(
       open = c("comunas_panel", "vis_panel"),
-
+      
       # Panel: selección de comunas
       accordion_panel(
-        "Comunas",
+        strong("Territorios"),
         value = "comunas_panel",
         selectInput(
           "region",
           "Región",
-          choices  = setNames(regiones_df$region, regiones_df$nombre_region),
+          choices  = c(
+            "Todas" = "todas",
+            setNames(regiones_df$region, regiones_df$nombre_region)
+          ),
           selected = 13
         ),
-        selectInput(
-          "comunas",
-          "Comunas a mostrar",
-          choices  = NULL,
-          multiple = TRUE
-        ),
-        layout_columns(
-          col_widths = c(6, 6),
-          actionButton(
-            "btn_top12", "Top 12",
-            class = "btn-sm btn-outline-primary w-100"
-          ),
-          actionButton(
-            "btn_todas", "Todas",
-            class = "btn-sm btn-outline-secondary w-100"
-          )
-        ),
-        numericInput(
-          "ncols",
-          "Columnas en el gráfico",
-          value = 4, min = 1, max = 10, step = 1
-        )
+        selectInput("comunas", "Comunas", choices  = NULL, multiple = TRUE),
+        # layout_columns(
+        #   col_widths = c(6, 6),
+        #   actionButton(
+        #     "btn_top12", "Top 12",
+        #     class = "btn-sm btn-outline-primary w-100"
+        #   ),
+        #   actionButton(
+        #     "btn_todas", "Todas",
+        #     class = "btn-sm btn-outline-secondary w-100"
+        #   )
+        # ),
+        
       ),
-
+      
       # Panel: configuración de puntos
       accordion_panel(
-        "Puntos",
+        strong("Visualización"),
         value = "vis_panel",
+        
+        numericInput(
+          "ncols",
+          "Columnas",
+          value = 3,
+          min = 1,
+          max = 6,
+          step = 1
+        ),
         sliderInput(
           "unidad_tasa",
           "Habitantes por punto",
-          min = 1, max = 100, value = 10, step = 5
+          min = 1,
+          max = 100,
+          value = 10,
+          step = NULL, 
+          ticks = FALSE
         ),
-        input_switch("radio_variable", "Círculos variables por superficie", value = FALSE),
-        conditionalPanel(
-          "input.radio_variable",
-          div(
+        input_switch("radio_variable", "Variar por superficie", value = FALSE),
+        conditionalPanel("input.radio_variable", div(
           sliderInput(
             "radio_rango",
             "Rango según superficie",
-            min = 0.5, max = 2, value = c(0.9, 1.6), step = 0.05
+            min = 0.5,
+            max = 2,
+            value = c(0.9, 1.6),
+            step = 0.05
           ),
-          p("La diferencia de tamaño entre las comunas de menor y mayor superficie",
-            class = "info")
+          p(
+            "La diferencia de tamaño entre las comunas de menor y mayor superficie",
+            class = "info"
           )
-        ),
+        )),
         sliderInput(
           "tamaño",
           "Tamaño de los puntos",
-          min = 0.1, max = 3, value = 0.7, step = 0.1
+          min = 0.3,
+          max = 3,
+          value = 0.7,
+          step = 0.1, 
+          ticks = FALSE
         ),
         sliderInput(
           "alpha",
           "Transparencia de los puntos",
-          min = 0.1, max = 1, value = 0.6, step = 0.05
+          min = 0.3,
+          max = 1,
+          value = 0.6,
+          step = 0.05, 
+          ticks = FALSE
         )
       ),
-
+      
     )
   ),
-
+  
   card(
+    fill = FALSE,
     full_screen = TRUE,
-    card_header("Gráfico"),
+    # card_header("Gráfico"),
     plotOutput("grafico", height = "650px") |>
       withSpinner(color = color$texto, type = 6)
+  ),
+  
+  card(
+    card_header("Datos"),
+    div(style = "margin-bottom: 8px;", DTOutput("tabla"))
   )
 )
 
@@ -144,35 +202,41 @@ ui <- page_sidebar(
 # ── Server ────────────────────────────────────────────────────────────────────
 
 server <- function(input, output, session) {
-
-  # Comunas de la región seleccionada, ordenadas por población
+  # Comunas de la región seleccionada (o de todo el país), ordenadas por población
   comunas_region <- reactive({
-    poblacion_area |>
-      filter(region == as.integer(input$region)) |>
-      arrange(desc(poblacion))
+    if (input$region == "todas") {
+      poblacion_area |> arrange(desc(poblacion))
+    } else {
+      poblacion_area |>
+        filter(region == as.integer(input$region)) |>
+        arrange(desc(poblacion))
+    }
   })
-
+  
   # Actualizar selector de comunas al cambiar de región
   observeEvent(input$region, {
     cr      <- comunas_region()
     etiquetas <- glue("{cr$nombre_comuna} ({label_number()(cr$poblacion)} hab.)")
     choices <- setNames(cr$comuna, etiquetas)
-    top12   <- head(cr$comuna, 12)
-    updateSelectInput(session, "comunas", choices = choices, selected = top12)
+    top12   <- head(cr$comuna, 9)
+    updateSelectInput(session,
+                      "comunas",
+                      choices = choices,
+                      selected = top12)
   })
-
-  # Botón: seleccionar top 12
-  observeEvent(input$btn_top12, {
-    cr <- comunas_region()
-    updateSelectInput(session, "comunas", selected = head(cr$comuna, 12))
-  })
-
-  # Botón: seleccionar todas
-  observeEvent(input$btn_todas, {
-    cr <- comunas_region()
-    updateSelectInput(session, "comunas", selected = cr$comuna)
-  })
-
+  
+  # # Botón: seleccionar top 12
+  # observeEvent(input$btn_top12, {
+  #   cr <- comunas_region()
+  #   updateSelectInput(session, "comunas", selected = head(cr$comuna, 12))
+  # })
+  
+  # # Botón: seleccionar todas
+  # observeEvent(input$btn_todas, {
+  #   cr <- comunas_region()
+  #   updateSelectInput(session, "comunas", selected = cr$comuna)
+  # })
+  
   # Datos filtrados para las comunas seleccionadas
   datos_graf <- reactive({
     req(input$comunas)
@@ -180,52 +244,106 @@ server <- function(input, output, session) {
       filter(comuna %in% input$comunas) |>
       mutate(nombre_comuna = fct_reorder(nombre_comuna, desc(poblacion)))
   })
-
-  # Renderizar gráfico
+  
+  # Renderizar tabla
+  output$tabla <- renderDT({
+    req(datos_graf())
+    
+    comunas_region() |>
+      mutate(densidad = round(poblacion / superficie, 1)) |>
+      arrange(desc(poblacion)) |>
+      select(
+        Región = nombre_region,
+        Comuna = nombre_comuna,
+        `Población urbana` = poblacion,
+        `Superficie urbana (km²)` = superficie,
+        `Densidad (hab/km²)` = densidad
+      ) |>
+      datatable(
+        rownames = FALSE,
+        class    = "stripe hover cell-border",
+        options  = list(
+          pageLength = 10,
+          dom        = "tip",
+          language   = list(
+            info     = "Mostrando _START_ a _END_ de _TOTAL_ comunas",
+            infoEmpty = "Sin comunas para mostrar",
+            paginate = list(previous = "Anterior", `next` = "Siguiente")
+          )
+        )
+      ) |>
+      formatRound(
+        "Población urbana",
+        digits = 0,
+        mark = ".",
+        dec.mark = ","
+      ) |>
+      formatRound(
+        "Superficie urbana (km²)",
+        digits = 1,
+        mark = ".",
+        dec.mark = ","
+      ) |>
+      formatRound(
+        "Densidad (hab/km²)",
+        digits = 1,
+        mark = ".",
+        dec.mark = ","
+      )
+  })
+  
+  ## gráfico ----
   output$grafico <- renderPlot({
     req(datos_graf())
-
+    
     datos       <- datos_graf()
     unidad_tasa <- input$unidad_tasa
     tamaño      <- input$tamaño
     alpha_val   <- input$alpha
     ncols       <- input$ncols
-
+    
     puntos_pob <- datos |>
       mutate(densidad = poblacion / superficie) |>
-      mutate(
-        radio = if (isTRUE(input$radio_variable)) {
-          rescalar(superficie, input$radio_rango[1], input$radio_rango[2])
-        } else {
-          0.7
-        },
-        dens = ceiling(densidad / unidad_tasa)
-      ) |>
+      mutate(radio = if (isTRUE(input$radio_variable)) {
+        rescalar(superficie, input$radio_rango[1], input$radio_rango[2])
+      } else {
+        0.7
+      },
+      dens = ceiling(densidad / unidad_tasa)) |>
       rowwise() |>
       mutate(points = puntos(dens, radio)) |>
       unnest(points)
-
+    
     densidad_decimales <- ifelse(any(puntos_pob$densidad < 10), 0.1, 1)
-
+    
     ggplot() +
       # Círculo de fondo
       geom_circle(
         data = puntos_pob |> distinct(nombre_comuna, radio),
-        aes(x0 = 0, y0 = 0, r = radio + 0.04),
-        linewidth = 0.5, fill = color$secundario, color = color$detalle
+        aes(
+          x0 = 0,
+          y0 = 0,
+          r = radio + (radio / 20)
+        ),
+        linewidth = 0.5,
+        fill = color$secundario,
+        color = color$detalle
       ) +
       # Puntos de población
       geom_point(
         data = puntos_pob,
         aes(x = x, y = y),
-        size = tamaño, alpha = alpha_val, color = color$texto
+        size = tamaño,
+        alpha = alpha_val,
+        color = color$texto
       ) +
-      # Etiqueta superior: nombre + densidad
+      # texto superior: nombre + densidad
       geom_richtext(
         data = puntos_pob |> distinct(nombre_comuna, densidad, radio),
         aes(
           x     = 0,
-          y     = radio + (radio/9), #0.09,
+          y     = radio + 0.14,
+          #0.09,
           label = glue(
             "<b style='font-size: 11pt;'>{nombre_comuna}</b><br>",
             "<span style='font-size: 8pt;'>",
@@ -236,25 +354,31 @@ server <- function(input, output, session) {
         label.padding = unit(0, "pt"),
         label.margin  = unit(0, "pt"),
         label.size    = unit(0, "pt"),
-        size = 3, vjust = 0, family = "Manrope",
-        fill = NA, color = color$texto
+        size = 3,
+        vjust = 0,
+        family = "Manrope",
+        fill = NA,
+        color = color$texto
       ) +
-      # Etiqueta inferior: superficie + población
+      # texto inferior: superficie + población
       geom_text(
         data = puntos_pob |> distinct(nombre_comuna, poblacion, superficie, radio),
         aes(
           x     = 0,
-          y     = -(radio + 0.12),
+          y     = -(radio + 0.16),
           label = glue(
             "{label_number(accuracy = 0.1, suffix = ' km²')(superficie)},",
             " {label_number()(poblacion)} hab."
           )
         ),
-        size = 2.8, vjust = 1, family = "Manrope", color = color$detalle
+        size = 2.8,
+        vjust = 1,
+        family = "Manrope",
+        color = color$detalle
       ) +
       scale_y_continuous(expand = expansion(c(0.03, 0.12))) +
       coord_fixed(clip = "off") +
-      facet_wrap(~nombre_comuna, ncol = ncols) +
+      facet_wrap( ~ nombre_comuna, ncol = ncols) +
       labs(
         title    = "Densidad poblacional urbana por comuna",
         subtitle = glue(
@@ -269,7 +393,11 @@ server <- function(input, output, session) {
         plot.background  = element_rect(fill = color$fondo, color = NA),
         strip.text       = element_blank(),
         strip.clip       = "off",
-        plot.title       = element_text(color = color$texto, size = 14),
+        plot.title       = element_text(
+          color = color$texto,
+          face = "bold",
+          size = 16
+        ),
         plot.subtitle    = element_text(color = color$texto, margin = margin(t = 5, b = 24)),
         plot.caption     = element_text(color = color$detalle, margin = margin(t = 12)),
         panel.spacing.y  = unit(1.1, "cm"),
