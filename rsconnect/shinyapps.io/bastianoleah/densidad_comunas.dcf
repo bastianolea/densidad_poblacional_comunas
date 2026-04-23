@@ -1,0 +1,13 @@
+name: densidad_comunas
+title: densidad_comunas
+username: bastianoleah
+account: bastianoleah
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 17192522
+bundleId: 11896309
+url: https://bastianoleah.shinyapps.io/densidad_comunas/
+version: 1
+asMultiple: FALSE
+asStatic: FALSE
+ignoredFiles: .positai/settings.json|densidad_fija_urbana.R|densidad_fija.R|densidad_variable.R|otros/densidad_comunas.png|pendientes.md|pruebas/cilindros.R|pruebas/poblacion_circulos.R|pruebas/poblacion.R|pruebas/superficie.R|graficos

@@ -5,51 +5,77 @@ library(tidyr)
 library(arrow)
 library(ggplot2)
 library(ggforce)
+library(showtext)
 library(scales)
-library(ggtext)
+# library(ggtext)
 library(glue)
 library(forcats)
 library(shinycssloaders)
 library(DT)
+library(ragg)
+library(sysfonts) # cargar tipografías personalizadas para ggplot
+library(showtext) # activar tipografías personalizadas para ggplot
+library(gfonts) # configurar tipografías google para html
+
+options(shiny.useragg = TRUE)
+
+shiny::devmode(TRUE)
+options(bslib.color_contrast_warnings = FALSE)
+
+# tipografía
+sysfonts::font_add(
+  family = "Manrope",
+  regular = "fonts/fonts/manrope-v20-latin-regular.ttf",
+  bold = "fonts/fonts/manrope-v20-latin-800.ttf"
+)
+
+showtext::showtext_auto()
+showtext::showtext_opts(dpi = 170)
 
 source("funciones.R")
 
-number_options(big.mark = ".", decimal.mark = ",")
+number_options(decimal.mark = ",", big.mark = ".")
 
-# ── Cargar datos ──────────────────────────────────────────────────────────────
-
+# cargar datos
 poblacion_area <- read_parquet("datos/poblacion_area_urbana.parquet")
 
+# ordenar regiones geográficamente
 orden_geografico <- c(15, 1, 2, 3, 4, 5, 13, 6, 7, 16, 8, 9, 14, 10, 11, 12)
 
 regiones_df <- poblacion_area |>
   distinct(region, nombre_region) |>
   arrange(match(region, orden_geografico))
 
-
-# ── Paleta de colores ─────────────────────────────────────────────────────────
-
+# paleta de colores
 color <- list(
-  texto      = "#075180",
-  fondo      = "#E5F3FA",
+  texto = "#075180",
+  fondo = "#E5F3FA",
   secundario = "#FBF7ED",
-  detalle    = "#77ADCC"
+  detalle = "#77ADCC"
 )
 
-
-# ── UI ────────────────────────────────────────────────────────────────────────
 
 ui <- page_sidebar(
   fillable = FALSE,
   title = "Densidad poblacional urbana",
+  
+  # tema
   theme = bs_theme(
     version   = 5,
     bg        = color$fondo,
     fg        = color$texto,
     primary   = color$texto,
     secondary = color$detalle,
-    base_font = font_google("Manrope")
+    # base_font = font_google("Manrope")
+    # base_font = font_collection(
+    #   font_face("Manrope", src = "fonts/Manrope-Regular.ttf", weight = "400"),
+    #   font_face("Manrope", src = "fonts/Manrope-Bold.ttf",    weight = "700")
+    # )
   ),
+  
+  # tipografía para html, instalada con gfonts::setup_font()
+  # gfonts::setup_font("manrope", "fonts")
+  gfonts::use_font("manrope", "fonts/css/manrope.css"),
   
   tags$head(
     tags$style(
@@ -59,6 +85,8 @@ ui <- page_sidebar(
         line-height: 1.3;
         margin-top: -8px;
         margin-bottom: 20px;
+      }
+      table.dataTable {
       }
       table.dataTable {
       font-size: 80%;
@@ -83,11 +111,14 @@ ui <- page_sidebar(
   
   
   markdown(
-    "Visualiza la **densidad poblacional** (cantidad de personas que habitan por kilómetro cuadrado) de las comunas de Chile. Selecciona una región para ver las comunas más pobladas y sus densidades, o puedes elegir las comunas que necesites ver. También puedes elegir _Todas_ en el selector de regiones para visualizar juntas comunas de cualquier región del país."
+    "Visualiza la densidad poblacional de las comunas de Chile, para la población y territorios urbanos. La **densidad urbana** corresponde a la cantidad de personas que habitan por kilómetro cuadrado de superficie urbana."),
+  
+  markdown(
+    "Selecciona una región para ver las comunas más pobladas y sus densidades, y luego elige las comunas que necesites ver. También puedes poner _Todas_ en el selector de regiones para visualizar juntas comunas de cualquier región del país."
   ),
   
   markdown(
-    "Los datos provienen del [Censo 2024](https://censo2024.ine.gob.cl), cartografía censal nivel manzanas."
+    "Los datos provienen del [Censo 2024](https://censo2024.ine.gob.cl) a nivel de personas, y las superficies urbanas se calculan desde la cartografía censal a nivel de manzanas."
   ),
   
   
@@ -176,7 +207,7 @@ ui <- page_sidebar(
           min = 0.3,
           max = 1,
           value = 0.6,
-          step = 0.05, 
+          step = 0.1, 
           ticks = FALSE
         )
       ),
@@ -245,7 +276,7 @@ server <- function(input, output, session) {
       mutate(nombre_comuna = fct_reorder(nombre_comuna, desc(poblacion)))
   })
   
-  # Renderizar tabla
+  ## tabla ----
   output$tabla <- renderDT({
     req(datos_graf())
     
@@ -302,6 +333,8 @@ server <- function(input, output, session) {
     alpha_val   <- input$alpha
     ncols       <- input$ncols
     
+    # browser()
+    
     puntos_pob <- datos |>
       mutate(densidad = poblacion / superficie) |>
       mutate(radio = if (isTRUE(input$radio_variable)) {
@@ -316,8 +349,9 @@ server <- function(input, output, session) {
     
     densidad_decimales <- ifelse(any(puntos_pob$densidad < 10), 0.1, 1)
     
+    # dev.new()
     ggplot() +
-      # Círculo de fondo
+      # círculo de fondo
       geom_circle(
         data = puntos_pob |> distinct(nombre_comuna, radio),
         aes(
@@ -329,7 +363,7 @@ server <- function(input, output, session) {
         fill = color$secundario,
         color = color$detalle
       ) +
-      # Puntos de población
+      # puntos de población
       geom_point(
         data = puntos_pob,
         aes(x = x, y = y),
@@ -337,44 +371,45 @@ server <- function(input, output, session) {
         alpha = alpha_val,
         color = color$texto
       ) +
-      # texto superior: nombre + densidad
-      geom_richtext(
+      # texto superior: nombre
+      geom_text(
         data = puntos_pob |> distinct(nombre_comuna, densidad, radio),
         aes(
-          x     = 0,
-          y     = radio + 0.14,
+          x = 0, y = radio + 0.28,
           #0.09,
-          label = glue(
-            "<b style='font-size: 11pt;'>{nombre_comuna}</b><br>",
-            "<span style='font-size: 8pt;'>",
-            "{label_number(accuracy = densidad_decimales)(densidad)} hab/km²",
-            "</span>"
-          )
+          label = nombre_comuna
+          # label = glue(
+          #   "<p style='font-size: 11pt; padding: 10px;'>{nombre_comuna}</p>",
+          #   "<p style='font-size: 8pt; margin-top: 10px !important;'>",
+          #   "{label_number(accuracy = densidad_decimales)(densidad)} hab/km²",
+          #   "</p>"
+          # )
         ),
-        label.padding = unit(0, "pt"),
-        label.margin  = unit(0, "pt"),
-        label.size    = unit(0, "pt"),
-        size = 3,
-        vjust = 0,
-        family = "Manrope",
-        fill = NA,
-        color = color$texto
+        size = 3.4, vjust = 0, fontface = "bold",
+        family = "Manrope", fill = NA, color = color$texto
+      ) +
+      # texto medio: densidad
+      geom_text(
+        data = puntos_pob |> distinct(nombre_comuna, densidad, radio),
+        aes(
+          x = 0, y = radio + 0.12,
+          label = glue("{label_number(accuracy = densidad_decimales)(densidad)} hab/km²")
+        ),
+        size = 2.8, vjust = 0,
+        family = "Manrope", fill = NA, color = color$texto
       ) +
       # texto inferior: superficie + población
       geom_text(
         data = puntos_pob |> distinct(nombre_comuna, poblacion, superficie, radio),
         aes(
-          x     = 0,
-          y     = -(radio + 0.16),
+          x = 0, y = -(radio + 0.16),
           label = glue(
             "{label_number(accuracy = 0.1, suffix = ' km²')(superficie)},",
             " {label_number()(poblacion)} hab."
           )
         ),
-        size = 2.8,
-        vjust = 1,
-        family = "Manrope",
-        color = color$detalle
+        size = 2.8, vjust = 1,
+        family = "Manrope", color = color$detalle
       ) +
       scale_y_continuous(expand = expansion(c(0.03, 0.12))) +
       coord_fixed(clip = "off") +
@@ -390,21 +425,31 @@ server <- function(input, output, session) {
       ) +
       theme_void(base_family = "Manrope") +
       theme(
-        plot.background  = element_rect(fill = color$fondo, color = NA),
-        strip.text       = element_blank(),
-        strip.clip       = "off",
-        plot.title       = element_text(
+        plot.background = element_rect(fill = color$fondo, color = NA),
+        strip.text = element_blank(),
+        strip.clip = "off",
+        plot.title = element_text(
           color = color$texto,
           face = "bold",
           size = 16
         ),
-        plot.subtitle    = element_text(color = color$texto, margin = margin(t = 5, b = 24)),
-        plot.caption     = element_text(color = color$detalle, margin = margin(t = 12)),
-        panel.spacing.y  = unit(1.1, "cm"),
-        panel.spacing.x  = unit(0.5, "cm"),
-        plot.margin      = margin(12, 16, 12, 16)
+        plot.subtitle = element_text(color = color$texto, size = 10, lineheight = 1.2, margin = margin(t = 5, b = 24)),
+        plot.caption = element_text(color = color$detalle, margin = margin(t = 12)),
+        panel.spacing.y = unit(1.1, "cm"),
+        panel.spacing.x = unit(0.5, "cm"),
+        plot.margin = margin(12, 16, 12, 16)
       )
-  }, bg = color$fondo)
+  }, bg = color$fondo) #|>
+    # bindCache(
+    #   input$comunas,
+    #   input$unidad_tasa,
+    #   input$tamaño,
+    #   input$alpha,
+    #   input$ncols,
+    #   input$radio_variable,
+    #   input$radio_rango,
+    #   cache = "app"
+    # )
 }
 
 shinyApp(ui, server)
