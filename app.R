@@ -19,8 +19,8 @@ library(gfonts) # configurar tipografías google para html
 
 options(shiny.useragg = TRUE)
 
-shiny::devmode(TRUE)
-options(bslib.color_contrast_warnings = FALSE)
+# shiny::devmode(TRUE)
+# options(bslib.color_contrast_warnings = FALSE)
 
 # tipografía
 sysfonts::font_add(
@@ -164,7 +164,7 @@ ui <- page_sidebar(
           "ncols",
           "Columnas",
           value = 3,
-          min = 1,
+          min = 3,
           max = 6,
           step = 1
         ),
@@ -335,6 +335,10 @@ server <- function(input, output, session) {
     
     # browser()
     
+    # espaciado entre gráfico y textos
+    espacio <- ifelse(input$radio_variable, 0.6, 0.3)
+    espacio <- ifelse(input$ncols >= 5, 0.2, espacio)
+    
     puntos_pob <- datos |>
       mutate(densidad = poblacion / superficie) |>
       mutate(radio = if (isTRUE(input$radio_variable)) {
@@ -375,40 +379,33 @@ server <- function(input, output, session) {
       geom_text(
         data = puntos_pob |> distinct(nombre_comuna, densidad, radio),
         aes(
-          x = 0, y = radio + 0.28,
-          #0.09,
+          x = 0, y = radio + espacio,
           label = nombre_comuna
-          # label = glue(
-          #   "<p style='font-size: 11pt; padding: 10px;'>{nombre_comuna}</p>",
-          #   "<p style='font-size: 8pt; margin-top: 10px !important;'>",
-          #   "{label_number(accuracy = densidad_decimales)(densidad)} hab/km²",
-          #   "</p>"
-          # )
         ),
-        size = 3.4, vjust = 0, fontface = "bold",
+        size = 3.4, vjust = -0.4, fontface = "bold",
         family = "Manrope", fill = NA, color = color$texto
       ) +
       # texto medio: densidad
       geom_text(
         data = puntos_pob |> distinct(nombre_comuna, densidad, radio),
         aes(
-          x = 0, y = radio + 0.12,
+          x = 0, y = radio + espacio,
           label = glue("{label_number(accuracy = densidad_decimales)(densidad)} hab/km²")
         ),
-        size = 2.8, vjust = 0,
+        size = 2.8, vjust = 1.4,
         family = "Manrope", fill = NA, color = color$texto
       ) +
       # texto inferior: superficie + población
       geom_text(
         data = puntos_pob |> distinct(nombre_comuna, poblacion, superficie, radio),
         aes(
-          x = 0, y = -(radio + 0.16),
+          x = 0, y = -(radio + espacio),
           label = glue(
             "{label_number(accuracy = 0.1, suffix = ' km²')(superficie)},",
             " {label_number()(poblacion)} hab."
           )
         ),
-        size = 2.8, vjust = 1,
+        size = 2.8, vjust = 0,
         family = "Manrope", color = color$detalle
       ) +
       scale_y_continuous(expand = expansion(c(0.03, 0.12))) +
@@ -439,17 +436,17 @@ server <- function(input, output, session) {
         panel.spacing.x = unit(0.5, "cm"),
         plot.margin = margin(12, 16, 12, 16)
       )
-  }, bg = color$fondo) #|>
-    # bindCache(
-    #   input$comunas,
-    #   input$unidad_tasa,
-    #   input$tamaño,
-    #   input$alpha,
-    #   input$ncols,
-    #   input$radio_variable,
-    #   input$radio_rango,
-    #   cache = "app"
-    # )
+  }, bg = color$fondo) |>
+    bindCache(
+      input$comunas,
+      input$unidad_tasa,
+      input$tamaño,
+      input$alpha,
+      input$ncols,
+      input$radio_variable,
+      input$radio_rango,
+      cache = "app"
+    )
 }
 
 shinyApp(ui, server)
